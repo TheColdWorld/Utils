@@ -7,5 +7,6 @@
 /src/Debug/obj
 /src/Utils/bin
 /src/Utils/obj
+publish
 
 *.user
