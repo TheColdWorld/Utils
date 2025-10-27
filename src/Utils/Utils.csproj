@@ -1,15 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFrameworks>netstandard2.1</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>TheColdWorld.Utils</AssemblyName>
     <RootNamespace>TheColdWorld.Utils</RootNamespace>
     <Title>TheColdWorld.Utils</Title>
-    <Version>1.0.0</Version>
+    <Version>1.0.2</Version>
     <Authors>TheColdWorld</Authors>
     <Company>Null</Company>
+	  <LangVersion>13</LangVersion>
     <Description>a simple util for TheColdWorld</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>LGPL-2.1-only</PackageLicenseExpression>
@@ -29,6 +30,10 @@
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="9.0.10" />
   </ItemGroup>
 
 </Project>

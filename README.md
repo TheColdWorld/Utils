@@ -1,2 +1,1 @@
-a simple util for TheColdWorld
-it  will not publish any on github release!
+a simple util for TheColdWord's project
