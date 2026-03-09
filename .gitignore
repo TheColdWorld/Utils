@@ -10,3 +10,5 @@
 publish
 
 *.user
+/src/ConsoleDebug/bin
+/src/ConsoleDebug/obj
