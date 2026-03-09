@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.ComponentModel.Design;
-using System.Linq.Expressions;
-using System.Net.WebSockets;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Concurrent;
 
 namespace TheColdWorld.Utils.Thread;
 
@@ -15,15 +8,15 @@ namespace TheColdWorld.Utils.Thread;
 /// <seealso cref="AsyncService"/>
 public sealed class ThreadPool : TaskScheduler, IDisposable
 {
-    public ThreadPool(string prefix,ThreadPriority priority=ThreadPriority.Normal,uint? threadCount=null)
+    public ThreadPool(string prefix, ThreadPriority priority = ThreadPriority.Normal, uint? threadCount = null)
     {
         tasks = [];
         this.priority = priority;
-        this.threadNamePrefix=prefix;
+        this.threadNamePrefix = prefix;
         cancellationTokenSource = new();
-        if(threadCount != null)
+        if (threadCount != null)
         {
-            if(threadCount == 0) throw new ArgumentOutOfRangeException(nameof(threadCount));
+            if (threadCount == 0) throw new ArgumentOutOfRangeException(nameof(threadCount));
             threads = new ThreadUnit[threadCount.Value];
         }
         else
@@ -44,22 +37,23 @@ public sealed class ThreadPool : TaskScheduler, IDisposable
     protected override IEnumerable<Task> GetScheduledTasks() => tasks;
     protected override void QueueTask(Task task)
     {
-        if(disposed) throw new ObjectDisposedException(GetType().Name);
+        if (disposed) throw new ObjectDisposedException(GetType().Name);
         tasks.Add(task);
     }
     protected override Boolean TryExecuteTaskInline(Task task, Boolean taskWasPreviouslyQueued) => !disposed && Array.Exists(threads, t => t.thread == System.Threading.Thread.CurrentThread) && TryExecuteTask(task);
     internal sealed class ThreadUnit
     {
-        internal ThreadUnit(in ThreadPool threadPool,uint index) {
+        internal ThreadUnit(in ThreadPool threadPool, uint index)
+        {
             this.father = threadPool;
             thread = new(Tick)
             {
-                Name =$"{threadPool.threadNamePrefix}-{index}",
-                IsBackground=true,
-                Priority= threadPool.priority
+                Name = $"{threadPool.threadNamePrefix}-{index}",
+                IsBackground = true,
+                Priority = threadPool.priority
             };
             Logging.Log(Logging.LogLevel.Debug, $"Thread {thread.Name} started");
-            thread.Start(); 
+            thread.Start();
         }
         internal readonly System.Threading.Thread thread;
         internal readonly ThreadPool father;
@@ -76,13 +70,14 @@ public sealed class ThreadPool : TaskScheduler, IDisposable
                     }
                     catch (Exception ex)
                     {
-                        Logging.Log(Logging.LogLevel.Error,$"Exception occored in thread {thread.Name}", ex);
+                        Logging.Log(Logging.LogLevel.Error, $"Exception occored in thread {thread.Name}", ex);
                     }
                 }
-                catch(OperationCanceledException) { break; }
-                catch (Exception e) when (IsCriticalThreadException(e)) {
+                catch (OperationCanceledException) { break; }
+                catch (Exception e) when (IsCriticalThreadException(e))
+                {
                     Logging.Log(Logging.LogLevel.Error, $"Thread {thread.Name} exited because", e);
-                    break; 
+                    break;
                 }
                 catch (Exception) { continue; }
             }
@@ -90,7 +85,7 @@ public sealed class ThreadPool : TaskScheduler, IDisposable
     }
     public enum ThreadStatus
     {
-        Idle,UnInitlaized,Working
+        Idle, UnInitlaized, Working
     }
 
     private void Dispose(Boolean disposing)
@@ -116,10 +111,10 @@ public sealed class ThreadPool : TaskScheduler, IDisposable
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
-    internal  static bool IsCriticalThreadException(Exception ex) => ex is ObjectDisposedException or
+    internal static bool IsCriticalThreadException(Exception ex) => ex is ObjectDisposedException or
                ThreadAbortException or
                AppDomainUnloadedException or
                OutOfMemoryException or
-               AccessViolationException ;
-    
+               AccessViolationException;
+
 }
