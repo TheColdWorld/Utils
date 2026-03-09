@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace TheColdWorld.Utils.Thread;
+﻿namespace TheColdWorld.Utils.Thread;
 /// <summary>
 /// A class that can run <see cref="System.Threading.Tasks.Task"/> on a ThreadPool out of <see cref="System.Threading.ThreadPool"/>
 /// </summary>
@@ -13,22 +9,31 @@ public class AsyncService : IDisposable
     /// <param name="priority">The thread priority in thread pool</param>
     /// <param name="threadCount">The thread count of the thread pool(Default:<see cref="Environment.ProcessorCount"/>)</param>
     public AsyncService(string prefix, ThreadPriority priority = ThreadPriority.Normal, uint? threadCount = null) => threadPool = new(prefix, priority, threadCount);
-    protected ThreadPool threadPool ;
+    protected ThreadPool threadPool;
     private bool disposed = false;
 
-    public Task<TResult> Run<TResult>(Func<Task<TResult>> func)  => disposed
+    public Task<TResult> Run<TResult>(Func<Task<TResult>> func, CancellationToken token = default) => disposed
             ? throw new ObjectDisposedException(nameof(AsyncService))
-            : Task.Factory.StartNew(func, CancellationToken.None, TaskCreationOptions.None, threadPool).Unwrap();
-    public Task<TResult> Run<TResult>(Func<TResult> func)  => disposed
+            : Task.Factory.StartNew(func, token, TaskCreationOptions.None, threadPool).Unwrap();
+    public Task<TResult> Run<TResult>(Func<TResult> func, CancellationToken token = default) => disposed
             ? throw new ObjectDisposedException(nameof(AsyncService))
-            : Task.Factory.StartNew(func, CancellationToken.None, TaskCreationOptions.None, threadPool); 
-    public Task Run(Func<Task> func) => disposed
+            : Task.Factory.StartNew(func, token, TaskCreationOptions.None, threadPool);
+    public Task Run(Func<Task> func, CancellationToken token = default) => disposed
             ? throw new ObjectDisposedException(nameof(AsyncService))
-            : Task.Factory.StartNew(func, CancellationToken.None, TaskCreationOptions.None, threadPool).Unwrap();
-    public Task Run(Action func) => disposed
+            : Task.Factory.StartNew(func, token, TaskCreationOptions.None, threadPool).Unwrap();
+    public Task Run(Action func, CancellationToken token = default) => disposed
             ? throw new ObjectDisposedException(nameof(AsyncService))
-            : Task.Factory.StartNew(func, CancellationToken.None, TaskCreationOptions.None, threadPool);
-
+            : Task.Factory.StartNew(func, token, TaskCreationOptions.None, threadPool);
+    public Task Start(Task task)
+    {
+        task.Start(threadPool);
+        return task;
+    }
+    public Task<T> Start<T>(Task<T> task)
+    {
+        task.Start(threadPool);
+        return task;
+    }
     protected virtual void Dispose(Boolean disposing)
     {
         if (!disposed)
