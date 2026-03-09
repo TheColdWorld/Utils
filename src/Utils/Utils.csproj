@@ -7,7 +7,7 @@
     <AssemblyName>TheColdWorld.Utils</AssemblyName>
     <RootNamespace>TheColdWorld.Utils</RootNamespace>
     <Title>TheColdWorld.Utils</Title>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Authors>TheColdWorld</Authors>
     <Company>Null</Company>
 	  <LangVersion>13</LangVersion>
