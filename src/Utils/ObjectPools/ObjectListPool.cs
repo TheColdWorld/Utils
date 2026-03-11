@@ -1,12 +1,12 @@
 ﻿using System.Buffers;
 
 
-namespace TheColdWorld.Utils
+namespace TheColdWorld.Utils.ObjectPools
 {
-    public delegate void ObjectPoolRemoveAction<R>(ref R instance);
-    public sealed class ObjectPool<T>(Func<T> constructor, ObjectPoolRemoveAction<T>? removeEvent = null) : ArrayPool<T>
+    public delegate void ObjectCleanUpAction<R>(ref R instance);
+    public sealed class ObjectListPool<T>(Func<T> constructor, ObjectCleanUpAction<T>? removeEvent = null) : ArrayPool<T>
     {
-        private readonly ObjectPoolRemoveAction<T>? removeEvent = removeEvent;
+        private readonly ObjectCleanUpAction<T>? removeEvent = removeEvent;
         private readonly Func<T> constructor = constructor;
         private readonly object _lock = new();
         private readonly Dictionary<T, bool> data = [];
