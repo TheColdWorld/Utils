@@ -10,7 +10,7 @@
     <Version>1.0.3</Version>
     <Authors>TheColdWorld</Authors>
     <Company>Null</Company>
-	  <LangVersion>13</LangVersion>
+	  <LangVersion>14</LangVersion>
     <Description>a simple util for TheColdWorld</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>LGPL-2.1-only</PackageLicenseExpression>
