@@ -10,13 +10,13 @@ public sealed class TcpClient : IDisposable
     /// <param name="remoteEndPoint"><see cref="EndPoint"/> that <see cref="TcpClient"/> will connect to</param>
     /// <param name="onReceive">action will be executed whem <see cref="TcpClient"/> received a <see cref="IPacket"/></param>
     /// <param name="threadNamePrefix">The sting before the thread name(e.g <paramref name="threadNamePrefix"/>-index)</param>
-    public TcpClient(EndPoint remoteEndPoint, Action<JsonObject, Identifier> onReceive, string threadNamePrefix = "TheColdWorld-TcpClient-ThreadPool", CancellationToken cancellationToken = default)
+    public TcpClient(EndPoint remoteEndPoint, Action<JsonObject, Identifier,SendToRemote> onReceive, string threadNamePrefix = "TheColdWorld-TcpClient-ThreadPool", CancellationToken cancellationToken = default)
     {
         Socket socket = new(SocketType.Stream, ProtocolType.Tcp);
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         asyncService = new(threadNamePrefix, threadCount: 5);
         socket.Connect(remoteEndPoint);
-        Connection = new(socket, asyncService, onReceive, connection => { }, _cts.Token);
+        Connection = new(socket, asyncService, onReceive, connection => { }, _cts.Token,PacketBindSide.ServerBind);
     }
     public void Send(IPacket packet, SocketFlags flags = SocketFlags.None)
     {
