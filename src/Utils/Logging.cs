@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace TheColdWorld.Utils;
 /// <summary>
@@ -6,24 +7,19 @@ namespace TheColdWorld.Utils;
 /// </summary>
 public static class Logging
 {
-    private static Action<LogLevel, string>? _log = null;
-    /// <summary>
-    /// Override the logger of <c>TheColdWorld.Utils</c>
-    /// </summary>
-    public static void SetLogger(Action<LogLevel, string> logger) => _log = logger;
-    internal static void Log(LogLevel level, string Message)
+    private static object _lock = new();
+    public static event  LogAction? OnLogging;
+    public  delegate void LogAction(LogLevel level,DateTime logTime,string Message,string? threadname=null,Exception? exception=null);
+    internal static void Log(LogLevel level, string Message, Exception? exception=null)
     {
-        if (_log is not null) _log(level, "[TheColdWorld.Utils]" + Message);
-    }
-    internal static void Log(LogLevel level, string MessagePrefix, Exception exception)
-    {
-        if (_log is not null)
+        DateTime current= DateTime.Now;
+        string? ThreadName=System.Threading.Thread.CurrentThread.Name;
+        Task.Run(() =>
         {
-            StringBuilder sb = new();
-            sb.AppendLine($"[TheColdWorld.Utils]{MessagePrefix}.{exception.GetType().FullName}: {exception.Message}");
-            sb.AppendLine(exception.StackTrace);
-            _log(level, sb.ToString());
-        }
+            lock (_lock) {
+                OnLogging?.Invoke(level,current,Message,ThreadName,exception);
+            }
+        });
     }
     public enum LogLevel
     {
