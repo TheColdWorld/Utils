@@ -36,7 +36,7 @@ public sealed class TcpClient : IDisposable
             _disposed = true;
         }
         _cts.Cancel();
-        Connection.Dispose();
+        Connection?.Dispose();
         _cts.Dispose();
         GC.SuppressFinalize(this);
     }

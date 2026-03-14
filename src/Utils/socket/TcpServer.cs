@@ -108,7 +108,7 @@ public sealed class TcpServer : IDisposable
                 lock (clients) { connections = [.. clients]; }
                 foreach (var item in connections)
                 {
-                    item.Dispose();
+                    item?.Dispose();
                 }
                 lock (clients)
                 {
