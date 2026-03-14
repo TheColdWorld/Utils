@@ -9,7 +9,7 @@ public sealed class PoolObject<T> : IDisposable
     internal readonly ObjectPool<T> father;
     private bool _disposed;
     private readonly T _value;
-    public T Value => _disposed ?_value: throw new ObjectDisposedException(string.Empty);
+    public T Value => _disposed ? throw new ObjectDisposedException(nameof(PoolObject<>)): _value;
 
     internal PoolObject(ObjectPool<T> pool,  T value)
     {
