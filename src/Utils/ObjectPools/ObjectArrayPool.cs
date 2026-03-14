@@ -155,7 +155,7 @@ public sealed class ObjectArrayPool<T> : ObjectPool<T>
         lock (_lock)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(data));
-            if (object.ReferenceEquals(poolObject.father,this)&&singleRents.TryGetValue(poolObject,out int index))
+            if (object.ReferenceEquals(poolObject.father,this)&&singleRents.TryGetValue(poolObject,out uint index))
             {
                 cleanUpAction?.Invoke(ref data[index]);
                 rented[index] = false;
