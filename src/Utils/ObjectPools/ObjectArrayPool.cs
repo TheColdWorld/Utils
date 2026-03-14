@@ -10,28 +10,48 @@ public sealed class ObjectArrayPool<T> : ObjectPool<T>
     {
         if (capacity > 0X7FFFFFC7) throw new ArgumentOutOfRangeException($"paramator {nameof(capacity)} is larger than 0X7FFFFFC7({0X7FFFFFC7})");
         this.cleanUpAction = cleanUpAction;
+        this.Capacity= capacity;
         data = new T[capacity];
         rented=new bool[capacity];
-        for (int i = 0; i < data.Length; i++)
-        {
-            data[i] = constructor.Invoke();
-        }
+        Array.Fill(data, default);
+        constructorWithIndex = _ => constructor.Invoke();
     }
+    public ObjectArrayPool(uint capacity, Func<uint,T> constructorWithIndex, ObjectCleanUpAction<T>? cleanUpAction = default)
+    {
+        if (capacity > 0X7FFFFFC7) throw new ArgumentOutOfRangeException($"paramator {nameof(capacity)} is larger than 0X7FFFFFC7({0X7FFFFFC7})");
+        this.cleanUpAction = cleanUpAction;
+        this.Capacity = capacity;
+        data = new T[capacity];
+        rented = new bool[capacity];
+        Array.Fill(data, default);
+        this.constructorWithIndex = constructorWithIndex;
+    }
+    readonly Func<uint, T> constructorWithIndex;
+    private volatile bool _disposed=false;
+    public uint Capacity { get; }
     readonly object _lock=new();
     readonly T[] data;
     readonly bool[] rented;
     readonly Dictionary<T[], int[]> rents = [];
-    readonly Dictionary<PoolObject<T>, int> singleRents = [];
+    readonly Dictionary<PoolObject<T>, uint> singleRents = [];
     readonly ObjectCleanUpAction<T>? cleanUpAction;
     public override bool TryRent(out PoolObject<T> poolObject)
     {
+        if (_disposed) throw new ObjectDisposedException(nameof(data));
         lock (_lock)
         {
-            for (int i = 0; i < rented.Length; i++)
+            if (_disposed) throw new ObjectDisposedException(nameof(data));
+            for (uint i = 0; i < rented.Length; i++)
             {
                 if (!rented[i])
                 {
-                    T item = data[i]!;
+                    T item;
+                    if (data[i] is null)
+                    {
+                        data[i]=constructorWithIndex(i);
+                        item=data[i];
+                    }
+                    else item = data[i];
                     PoolObject<T> rst = new(this, item);
                     rented[i] = true;
                     singleRents.Add(rst, i);
@@ -45,12 +65,20 @@ public sealed class ObjectArrayPool<T> : ObjectPool<T>
     }
     public override PoolObject<T>? Rent() 
     {
+        if (_disposed) throw new ObjectDisposedException(nameof(data));
         lock (_lock) {
-            for (int i = 0; i < rented.Length; i++)
+            if (_disposed) throw new ObjectDisposedException(nameof(data));
+            for (uint i = 0; i < rented.Length; i++)
             {
                 if (!rented[i])
                 {
-                    T item = data[i]!;
+                    T item;
+                    if (data[i] is null)
+                    {
+                        data[i] = constructorWithIndex(i);
+                        item = data[i];
+                    }
+                    else item = data[i];
                     PoolObject<T> rst = new(this, item);
                     rented[i] = true;
                     singleRents.Add(rst, i);
@@ -62,11 +90,13 @@ public sealed class ObjectArrayPool<T> : ObjectPool<T>
     }
     public T[] Rent(int minimumLength,bool throwIfNotEnough=true)
     {
+        if (_disposed) throw new ObjectDisposedException(nameof(data));
         if (minimumLength == 0) return [];
         if (minimumLength < 0) throw new ArgumentOutOfRangeException(nameof(minimumLength));
         if (minimumLength > data.Length) throw new ArgumentOutOfRangeException(nameof(minimumLength));
         lock (_lock)
         {
+            if (_disposed) throw new ObjectDisposedException(nameof(data));
             int[] indexes = new int[minimumLength];
             Array.Fill(indexes, -1);
             int idx = 0;
@@ -83,7 +113,14 @@ public sealed class ObjectArrayPool<T> : ObjectPool<T>
             {
                 int index = indexes[i];
                 if (index < 0) continue;
-                values[i] = data[index];
+                T item;
+                if (data[index] is null)
+                {
+                    data[index] = constructorWithIndex((uint)index);
+                    item = data[index];
+                }
+                else item = data[index];
+                values[i] = item;
                 rented[index] = true;
             }
             rents.Add(values, indexes);
@@ -94,8 +131,10 @@ public sealed class ObjectArrayPool<T> : ObjectPool<T>
     public override void Return(params T[] array)=> Return(array,false);
     public override void Return(T[] array, bool clearArray = false)
     {
+        if (_disposed) throw new ObjectDisposedException(nameof(data));
         lock (_lock)
         {
+            if (_disposed) throw new ObjectDisposedException(nameof(data));
             if (rents.TryGetValue(array,out int[] idxs))
             {
                 rents.Remove(array);
@@ -110,11 +149,13 @@ public sealed class ObjectArrayPool<T> : ObjectPool<T>
             if (clearArray) Array.Fill(array, default);
         }
     }
-    public override void Return(PoolObject<T> poolObject,bool disposeing)
+    public override void Return(PoolObject<T> poolObject,bool disposeing=false)
     {
+        if (_disposed) throw new ObjectDisposedException(nameof(data));
         lock (_lock)
         {
-            if(object.ReferenceEquals(poolObject.father,this)&&singleRents.TryGetValue(poolObject,out int index))
+            if (_disposed) throw new ObjectDisposedException(nameof(data));
+            if (object.ReferenceEquals(poolObject.father,this)&&singleRents.TryGetValue(poolObject,out int index))
             {
                 cleanUpAction?.Invoke(ref data[index]);
                 rented[index] = false;
@@ -122,6 +163,24 @@ public sealed class ObjectArrayPool<T> : ObjectPool<T>
                 if(!disposeing) poolObject.Dispose(true);
             }
             else throw new ArgumentException("object not from this pool.", nameof(poolObject));
+        }
+    }
+    public override void Dispose() { 
+        _disposed= true;
+        lock (_lock)
+        {
+            foreach (T item in data)
+            {
+                if (item is IDisposable disposable) disposable.Dispose();
+                if(item is IAsyncDisposable asyncDisposable) asyncDisposable.DisposeAsync().GetAwaiter().GetResult();
+            }
+            foreach (var item in singleRents.Keys)
+            {
+                item.Dispose(true);
+            }
+            Array.Fill(data, default);
+            singleRents.Clear();
+            rents.Clear();
         }
     }
 }

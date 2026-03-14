@@ -1,109 +1,126 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
+using TheColdWorld.Utils.Exceptions;
+using TheColdWorld.Utils.ObjectPools;
 
 namespace TheColdWorld.Utils.Thread;
-
+#pragma warning disable CS0618
 /// <summary>
 /// A thread pool out of <see cref="System.Threading.ThreadPool"/><br/>Please use <see cref="AsyncService"/> instead of <see cref="ThreadPool"/>
 /// </summary>
 /// <seealso cref="AsyncService"/>
+[Obsolete("use TheColdWorld.Utils.Thread.AsyncService instead of TheColdWorld.Utils.Thread.ThreadPool", false)]
 public sealed class ThreadPool : TaskScheduler, IDisposable
 {
+    public override int MaximumConcurrencyLevel => (int)unitpool.Capacity;
+    private readonly string namePrefix;
+    private readonly ThreadPriority threadPriority;
+    private bool _disposed;
+    private readonly ObjectArrayPool<ThreadUnit> unitpool;
+    private readonly CancellationTokenSource cancellationTokenSource = new();
+    private readonly ConcurrentDictionary<ThreadUnit, PoolObject<ThreadUnit>> gotten = [];
+    private readonly ConcurrentQueue<Task> scheculedTasks = [];
     public ThreadPool(string prefix, ThreadPriority priority = ThreadPriority.Normal, uint? threadCount = null)
     {
-        tasks = [];
-        this.priority = priority;
-        this.threadNamePrefix = prefix;
-        cancellationTokenSource = new();
-        if (threadCount != null)
-        {
-            if (threadCount == 0) throw new ArgumentOutOfRangeException(nameof(threadCount));
-            threads = new ThreadUnit[threadCount.Value];
-        }
-        else
-        {
-            threads = new ThreadUnit[Environment.ProcessorCount];
-        }
-        for (uint i = 0; i < threads.Length; i++)
-        {
-            threads[i] = new(this, i);
-        }
+        uint _count = threadCount == null ? (uint)Environment.ProcessorCount : threadCount.Value;
+        if (_count > Environment.ProcessorCount * 1000) throw new IndexOutOfRangeException($"param {nameof(threadCount)} is tooooooooo big ({_count}>{Environment.ProcessorCount * 1000})");
+        this.namePrefix = prefix;
+        this.threadPriority = priority;
+        unitpool = new(_count,constructorWithIndex:index => new ThreadUnit(this,index,cancellationTokenSource.Token), (ref unit) => { });
     }
-    internal readonly BlockingCollection<Task> tasks;
-    internal readonly ThreadUnit[] threads;
-    internal readonly string threadNamePrefix;
-    internal readonly ThreadPriority priority;
-    internal readonly CancellationTokenSource cancellationTokenSource;
-    private volatile bool disposed;
-    protected override IEnumerable<Task> GetScheduledTasks() => tasks;
+    protected override IEnumerable<Task> GetScheduledTasks() => _disposed? throw new ObjectDisposedException(nameof(ThreadPool)): new List<Task>(scheculedTasks);
     protected override void QueueTask(Task task)
     {
-        if (disposed) throw new ObjectDisposedException(GetType().Name);
-        tasks.Add(task);
-    }
-    protected override Boolean TryExecuteTaskInline(Task task, Boolean taskWasPreviouslyQueued) => !disposed && Array.Exists(threads, t => t.thread == System.Threading.Thread.CurrentThread) && TryExecuteTask(task);
-    internal sealed class ThreadUnit
-    {
-        internal ThreadUnit(in ThreadPool threadPool, uint index)
+        if (_disposed) throw new ObjectDisposedException(nameof(ThreadPool));
+        if (unitpool.TryRent(out PoolObject<ThreadUnit> unit))
         {
-            this.father = threadPool;
-            thread = new(Tick)
-            {
-                Name = $"{threadPool.threadNamePrefix}-{index}",
-                IsBackground = true,
-                Priority = threadPool.priority
-            };
-            Logging.Log(Logging.LogLevel.Debug, $"Thread {thread.Name} started");
+            if (!gotten.TryAdd(unit.Value, unit)) throw new System.InvalidOperationException("failed to update ThreadPool status");
+            unit.Value.Awake(task);
+        }
+        else scheculedTasks.Enqueue(task);
+    }
+    protected override Boolean TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => false;
+    internal sealed class ThreadUnit :IDisposable
+    {
+        internal ThreadUnit(in ThreadPool threadPool, uint index,CancellationToken token=default)
+        {
+            this.father=threadPool;
+            this.source=CancellationTokenSource.CreateLinkedTokenSource(token);
+            thread = new(Loop) { Name=$"{father.namePrefix}-{index}",Priority=father.threadPriority,IsBackground=true};
             thread.Start();
         }
         internal readonly System.Threading.Thread thread;
         internal readonly ThreadPool father;
-        internal void Tick()
+        private Task? _cutrrentTask=null;
+        private readonly CancellationTokenSource source;
+        private readonly object _lock = new();
+        private bool running = false;
+        private void Loop()
         {
-            while (!father.cancellationTokenSource.Token.IsCancellationRequested)
+            while(!source.Token.IsCancellationRequested)
             {
-                try
+                lock (_lock)
                 {
-                    Task CurrentTask = father.tasks.Take(father.cancellationTokenSource.Token);
-                    try
+                    while(!running)
                     {
-                        father.TryExecuteTask(CurrentTask);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logging.Log(Logging.LogLevel.Error, $"Exception occored in thread {thread.Name}", ex);
+                        Monitor.Wait(_lock);
                     }
                 }
-                catch (OperationCanceledException) { break; }
-                catch (Exception e) when (IsCriticalThreadException(e))
+                if (_cutrrentTask is not null)
                 {
-                    Logging.Log(Logging.LogLevel.Error, $"Thread {thread.Name} exited because", e);
-                    break;
+                    if (!father.TryExecuteTask(_cutrrentTask))
+                    {
+                        if (_cutrrentTask.IsFaulted)
+                        {
+                            Logging.Log(Logging.LogLevel.Error, "occored a unhandled Exception", _cutrrentTask.Exception);
+                        }
+                        if (_cutrrentTask.IsCanceled){
+                            Logging.Log(Logging.LogLevel.Infomation, "Task in threadpool is canceled");
+                        }
+                    }
                 }
-                catch (Exception) { continue; }
+                _cutrrentTask = null;
+                if (father.scheculedTasks.TryDequeue(out Task newTask))
+                {
+                    this._cutrrentTask = newTask;
+                    continue;
+                }
+                //on idle
+                lock (_lock) {
+                    running = false;
+                    if (father.gotten.TryRemove(this, out PoolObject<ThreadUnit> reference))
+                    {
+                        father.unitpool.Return(reference);
+                    }
+                }
             }
         }
-    }
-    public enum ThreadStatus
-    {
-        Idle, UnInitlaized, Working
-    }
+        internal void Awake(Task newTask)
+        {
+            lock (_lock)
+            {
+                _cutrrentTask = newTask;
+                running = true;
+                Monitor.PulseAll(_lock); 
+            }
+        }
 
+        public void Dispose()
+        {
+            this.source.Cancel();
+            this.source.Dispose();
+        }
+    }
     private void Dispose(Boolean disposing)
     {
-        if (!disposed)
+        if (!_disposed)
         {
             if (disposing)
             {
-                tasks.CompleteAdding();
-                cancellationTokenSource.Cancel();
-                foreach (var item in this.threads)
-                {
-                    if (item.thread.IsAlive) item.thread.Join();
-                }
-                cancellationTokenSource.Dispose();
-                this.tasks.Dispose();
+                this.cancellationTokenSource.Cancel();
+                this.unitpool.Dispose();
             }
-            disposed = true;
+            _disposed = true;
         }
     }
     public void Dispose()
@@ -111,10 +128,5 @@ public sealed class ThreadPool : TaskScheduler, IDisposable
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
-    internal static bool IsCriticalThreadException(Exception ex) => ex is ObjectDisposedException or
-               ThreadAbortException or
-               AppDomainUnloadedException or
-               OutOfMemoryException or
-               AccessViolationException;
-
 }
+#pragma warning restore

@@ -1,8 +1,8 @@
 ﻿namespace TheColdWorld.Utils.Thread;
+#pragma warning disable CS0618
 /// <summary>
 /// A class that can run <see cref="System.Threading.Tasks.Task"/> on a ThreadPool out of <see cref="System.Threading.ThreadPool"/>
 /// </summary>
-///<seealso cref="ThreadPool"/>
 public class AsyncService : IDisposable
 {
     /// <param name="prefix">The sting before the thread name(e.g <paramref name="prefix"/>-index)</param>
@@ -51,3 +51,4 @@ public class AsyncService : IDisposable
         GC.SuppressFinalize(this);
     }
 }
+#pragma warning restore
