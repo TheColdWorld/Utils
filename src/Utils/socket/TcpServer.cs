@@ -14,7 +14,7 @@ public sealed class TcpServer : IDisposable
     /// <param name="enableV6">enable <see cref="TcpServer"/> on Ipv6 port</param>
     /// <param name="threadNamePrefix">The sting before the thread name(e.g <paramref name="threadNamePrefix"/>-index)</param>
     /// <exception cref="ArgumentException">throws if <paramref name="enableV4"/>=<paramref name="enableV6"/>=false</exception>
-    public TcpServer(int port, Action<JsonObject, Identifier,SendToRemote> PacketAccept, uint backlog = 20, bool enableV4 = true, bool enableV6 = true, string threadNamePrefix = "TheColdWorld-TcpServer-ThreadPool", CancellationToken cancellationToken = default)
+    public TcpServer(int port, Action<JsonObject, Identifier, SendToRemote, EndPoint> PacketAccept, uint backlog = 20, bool enableV4 = true, bool enableV6 = true, string threadNamePrefix = "TheColdWorld-TcpServer-ThreadPool", CancellationToken cancellationToken = default)
     {
         if (!enableV4 && !enableV6) throw new ArgumentException($"You cannot set {nameof(enableV4)}={nameof(enableV6)}=false");
         this.asyncService = new(threadNamePrefix, ThreadPriority.Normal, backlog * 3);
@@ -92,7 +92,7 @@ public sealed class TcpServer : IDisposable
     readonly CancellationTokenSource cancellationTokenSource;
     private readonly Socket? v4_socket;
     private readonly Socket? v6_socket;
-    private readonly Action<JsonObject, Identifier,SendToRemote> packetAccept;
+    private readonly Action<JsonObject, Identifier,SendToRemote,EndPoint> packetAccept;
     readonly LinkedList<Connection> clients = [];
     readonly Thread.AsyncService asyncService;
     private Boolean disposedValue;

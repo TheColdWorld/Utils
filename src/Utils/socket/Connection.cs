@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 using System.Text.Json.Nodes;
 using TheColdWorld.Utils.Thread;
@@ -8,7 +9,7 @@ namespace TheColdWorld.Utils.socket;
 
 internal sealed class Connection : IDisposable
 {
-    internal Connection(Socket client, AsyncService asyncService, Action<JsonObject, Identifier,SendToRemote> packetAccept, Action<Connection> onDispose, CancellationToken token,PacketBindSide remoteSide)
+    internal Connection(Socket client, AsyncService asyncService, Action<JsonObject, Identifier,SendToRemote,EndPoint> packetAccept, Action<Connection> onDispose, CancellationToken token,PacketBindSide remoteSide)
     {
         this.socket = client;
         this._cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -51,7 +52,7 @@ internal sealed class Connection : IDisposable
                                 if (packet.PacketBindSide != remoteSide) throw new ArgumentException("Trying use server to send server bound packet", nameof(packet));
                                 Packet<IPacket> _willsend = new(ref packet);
                                 Send(_willsend, flag, token);
-                            });
+                            },socket.RemoteEndPoint);
                         }
                         catch (Exception e)
                         {
@@ -113,6 +114,8 @@ internal sealed class Connection : IDisposable
             await socket.SendAsync(packet.willSendData, flags, cts.Token);
         });
     }
+    internal EndPoint RemoteEndPoint => socket.RemoteEndPoint;
+    internal EndPoint LocalEndPoint => socket.LocalEndPoint;
     public void Dispose()
     {
         if (_disposed) return;
@@ -153,7 +156,7 @@ internal sealed class Connection : IDisposable
     private volatile bool _disposed;
     private volatile bool stable = true;
     private readonly object _lock = new();
-    private readonly Action<JsonObject, Identifier,SendToRemote> packetAccept;
+    private readonly Action<JsonObject, Identifier,SendToRemote,EndPoint> packetAccept;
     private readonly Action<Connection> onDispose;
     private readonly Memory<byte> buffer = new byte[8];
     ~Connection()

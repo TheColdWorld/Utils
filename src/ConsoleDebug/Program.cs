@@ -17,12 +17,12 @@ namespace ConsoleDebug
             Logging.OnLogging += (level, time, message, threadName, exception) => Console.WriteLine($"[{time:yyyyy-MM-dd:HH-mm-ss}]({(string.IsNullOrWhiteSpace(threadName)?string.Empty:$"{threadName}/")}{level}){message}{(exception is null?string.Empty:$"\n{exception}")}");
             int port = 25564;
             CancellationTokenSource tokenSource = new ();
-            using TcpServer server = new(port, (json, id,action) => 
-            Console.WriteLine($"[Debug]Server accepted packet(ID:{id}):{json.ToJsonString(new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) })}"));
-            using TcpClient client = new(new IPEndPoint(IPAddress.Loopback,port), (json, id,Action) => 
-            Console.WriteLine($"[Debug]Client accepted packet(ID:{id}):{json.ToJsonString(new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) })}"));
-            using TcpClient client2 = new(new IPEndPoint(IPAddress.Loopback, port), (json, id,Action) => 
-            Console.WriteLine($"[Debug]Client accepted packet(ID:{id}):{json.ToJsonString(new() { Encoder=JavaScriptEncoder.Create(UnicodeRanges.All)})}"));
+            using TcpServer server = new(port, (json, id,action,ep) => 
+            Console.WriteLine($"[Debug]Server accepted packet(ID:{id}) from {ep}:{json.ToJsonString(new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) })}"));
+            using TcpClient client = new(new IPEndPoint(IPAddress.Loopback,port), (json, id,Action,ep) => 
+            Console.WriteLine($"[Debug]Client() accepted packet(ID:{id}) from {ep}:{json.ToJsonString(new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) })}"));
+            using TcpClient client2 = new(new IPEndPoint(IPAddress.Loopback, port), (json, id,Action,ep) => 
+            Console.WriteLine($"[Debug]Client accepted packet(ID:{id}) from {ep}:{json.ToJsonString(new() { Encoder=JavaScriptEncoder.Create(UnicodeRanges.All)})}"));
             server.BroadCastAsync(new TestPacket2()).GetAwaiter().GetResult();
             client.Send(new TestPacket());
             client2.Send(new TestPacket());
