@@ -54,7 +54,7 @@ public static class SocketUtils
             using MemoryMappedFile mmf = MemoryMappedFile.CreateFromFile(tempFile.FullName, FileMode.Open);
             //using MemoryMappedViewAccessor accer = mmf.CreateViewAccessor(0, length, MemoryMappedFileAccess.Read);
             using MemoryMappedViewStream stream1 = mmf.CreateViewStream(0, length, MemoryMappedFileAccess.Read);
-            return JsonSerializer.Deserialize<JsonObject>(stream1) is JsonObject obj ? obj : throw new JsonException();
+            return JsonNode.Parse(stream1) is JsonObject obj ? obj : throw new JsonException();
         }
         finally
         {
@@ -118,7 +118,7 @@ public static class SocketUtils
             using MemoryMappedFile mmf = MemoryMappedFile.CreateFromFile(tempFile.FullName, FileMode.Open);
             //using MemoryMappedViewAccessor accer = mmf.CreateViewAccessor(0, length, MemoryMappedFileAccess.Read);
             using MemoryMappedViewStream stream1 = mmf.CreateViewStream(0, length, MemoryMappedFileAccess.Read);
-            return JsonSerializer.Deserialize<JsonObject>(stream1) is JsonObject obj ? obj : throw new JsonException();
+            return JsonNode.Parse(stream1) is JsonObject obj ? obj : throw new JsonException();
         }
         finally
         {
