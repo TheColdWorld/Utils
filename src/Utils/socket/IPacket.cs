@@ -29,3 +29,8 @@ internal sealed class Packet<P> where P : class, IPacket
     internal P packet;
     internal Identifier Identifier => packet.Identifier;
 }
+public static class PacketExtensions
+{
+    public static byte[] EncodeAsSocketPacket(this IPacket packet) => new Packet<IPacket>(ref packet).willSendData;
+    public static byte[] EncodeAsSocketPacket<P>(this P packet) where P : class, IPacket => new Packet<P>(ref packet).willSendData;
+}

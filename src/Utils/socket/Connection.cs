@@ -74,15 +74,15 @@ internal sealed class Connection : IDisposable
             }
         }
     }
-    private async Task SendLoop()
+    private void SendLoop()
     {
         while (!_disposed && stable && !_cts.IsCancellationRequested)
         {
-            if (SendQueue.TryDequeue(out Func<Task> task))
+            if (SendQueue.TryDequeue(out Task task))
             {
                 try
                 {
-                    await task.Invoke();
+                    task.RunSynchronously();
                 }
                 catch (SocketException se)
                 {
@@ -100,19 +100,39 @@ internal sealed class Connection : IDisposable
     }
     internal void Send<TPacket>(Packet<TPacket> packet, SocketFlags flags = SocketFlags.None, CancellationToken cancellationToken = default) where TPacket : class, IPacket
     {
-        SendQueue.Enqueue(async () =>
+        SendQueue.Enqueue(new(async () =>
         {
             using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
             await socket.SendAsync(packet.willSendData, flags, cts.Token);
-        });
+        }));
     }
     internal void Send(Packet<IPacket> packet, SocketFlags flags = SocketFlags.None, CancellationToken cancellationToken = default)
     {
-        SendQueue.Enqueue(async () =>
+        SendQueue.Enqueue(new(async () =>
+        {
+            using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+            await socket.SendAsync(packet.willSendData, flags, cts.Token);
+        }));
+    }
+    internal Task SendAsync<TPacket>(Packet<TPacket> packet, SocketFlags flags = SocketFlags.None, CancellationToken cancellationToken = default) where TPacket : class, IPacket
+    {
+        Task task = new(async () =>
         {
             using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
             await socket.SendAsync(packet.willSendData, flags, cts.Token);
         });
+        SendQueue.Enqueue(task);
+        return task;
+    }
+    internal Task SendAsync(Packet<IPacket> packet, SocketFlags flags = SocketFlags.None, CancellationToken cancellationToken = default)
+    {
+        Task task = new(async () =>
+        {
+            using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+            await socket.SendAsync(packet.willSendData, flags, cts.Token);
+        });
+        SendQueue.Enqueue(task);
+        return task;
     }
     internal EndPoint RemoteEndPoint => socket.RemoteEndPoint;
     internal EndPoint LocalEndPoint => socket.LocalEndPoint;
@@ -148,7 +168,7 @@ internal sealed class Connection : IDisposable
     internal PacketBindSide remoteSide;
     internal void ThrowIfDisposed() { if (_disposed) throw new ObjectDisposedException(nameof(socket)); }
     internal AsyncService asyncService;
-    internal ConcurrentQueue<Func<Task>> SendQueue;
+    internal ConcurrentQueue<Task> SendQueue;
     internal Socket socket;
     internal Task RecvTask;
     internal Task SendTask;

@@ -18,11 +18,24 @@ public sealed class TcpClient : IDisposable
         socket.Connect(remoteEndPoint);
         Connection = new(socket, asyncService, onReceive, connection => { }, _cts.Token,PacketBindSide.ServerBind);
     }
+    public void Send<TPacket> (TPacket packet,SocketFlags flags=SocketFlags.None) where TPacket :class,IPacket
+    {
+        if (packet.PacketBindSide != PacketBindSide.ServerBind) throw new ArgumentException("Trying use client to send client bound packet", nameof(packet));
+        Connection.Send(new Packet<TPacket>(ref packet), flags);
+    }
+    public Task SendAsync<TPacket>(TPacket packet, SocketFlags flags = SocketFlags.None) where TPacket : class, IPacket => 
+        packet.PacketBindSide != PacketBindSide.ServerBind
+            ? throw new ArgumentException("Trying use client to send client bound packet", nameof(packet))
+            : Connection.SendAsync(new Packet<TPacket>(ref packet), flags);
     public void Send(IPacket packet, SocketFlags flags = SocketFlags.None)
     {
         if (packet.PacketBindSide != PacketBindSide.ServerBind) throw new ArgumentException("Trying use client to send client bound packet", nameof(packet));
         Connection.Send(new(ref packet), flags);
     }
+    public Task SendAsync(IPacket packet, SocketFlags flags = SocketFlags.None)=> 
+        packet.PacketBindSide != PacketBindSide.ServerBind
+            ? throw new ArgumentException("Trying use client to send client bound packet", nameof(packet))
+            : Connection.SendAsync(new(ref packet), flags);
     internal readonly Connection Connection;
     internal readonly AsyncService asyncService;
     readonly CancellationTokenSource _cts;
